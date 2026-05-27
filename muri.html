@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>물리 발표: 완벽한 변인 통제 초전도 가상 실험실</title>
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+        
+        * { box-sizing: border-box; font-family: 'Pretendard', sans-serif; }
+        body { margin: 0; padding: 20px; background-color: #0b0f14; color: #e2e8f0; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+        .lab-container { max-width: 950px; width: 100%; background: #141b24; padding: 30px; border-radius: 20px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6); border: 1px solid #232d38; }
+        header { text-align: center; margin-bottom: 25px; }
+        header h1 { margin: 0; color: #4dadff; font-size: 1.8rem; letter-spacing: -0.5px; }
+        header p { margin: 8px 0 0 0; color: #718096; font-size: 1rem; }
+        .workspace { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        .canvas-viewport { position: relative; background: #070a0e; border-radius: 16px; border: 2px solid #2d3748; padding: 10px; overflow: hidden; box-shadow: inset 0 0 30px rgba(0,0,0,0.9); transition: all 0.3s ease; }
+        canvas { display: block; width: 100%; height: 260px; }
+        .terminal-overlay { position: absolute; top: 15px; left: 55px; font-family: monospace; font-size: 0.85rem; color: #4ade80; background: rgba(7, 10, 14, 0.85); padding: 10px 15px; border-radius: 6px; pointer-events: none; border: 1px solid rgba(74, 222, 128, 0.2); line-height: 1.5; min-width: 295px; z-index: 10; }
+        .pole { position: absolute; top: 50%; transform: translateY(-50%); font-size: 1.6rem; font-weight: 800; user-select: none; }
+        .pole.minus { left: 20px; color: #ff6b6b; }
+        .pole.plus { right: 20px; color: #4dadff; }
+        .graph-container { background: #0d1520; border: 1px solid #232d38; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 5px; }
+        .graph-title { font-size: 0.85rem; font-weight: bold; color: #ff6b6b; display: flex; justify-content: space-between; padding: 0 5px; }
+        #graphCanvas { width: 100%; height: 70px; background: #070a0e; border-radius: 6px; }
+        .control-panel { background: #1a232e; border-radius: 14px; padding: 20px; border: 1px solid #2d3748; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
+        .control-group { display: flex; flex-direction: column; gap: 8px; }
+        .control-label { font-size: 0.95rem; font-weight: 600; color: #a0aec0; display: flex; justify-content: space-between; }
+        .control-label span.val { color: #4dadff; font-weight: 700; }
+        .material-selector { display: flex; gap: 8px; height: 40px; }
+        .material-btn { flex: 1; background: #232d38; border: 1px solid #3a4a5b; color: #cbd5e0; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: all 0.2s ease; }
+        .material-btn.active { background: #4dadff; color: #070a0e; border-color: #4dadff; box-shadow: 0 0 12px rgba(77, 173, 255, 0.4); }
+        input[type="range"] { -webkit-appearance: none; width: 100%; height: 6px; background: #2d3748; border-radius: 3px; outline: none; margin: 12px 0; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; cursor: pointer; transition: transform 0.1s ease; }
+        #tempSlider::-webkit-slider-thumb { background: #ff9f43; box-shadow: 0 0 8px rgba(255,159,67,0.5); }
+        #voltSlider::-webkit-slider-thumb { background: #4ade80; box-shadow: 0 0 8px rgba(74,222,128,0.5); }
+    </style>
+</head>
+<body>
+
+<div class="lab-container">
+    <header>
+        <h1>전기 저항 가상 실험실 (독립 변인 통제 버전)</h1>
+        <p>전압과 온도가 서로를 간섭하지 않고 독립적으로 작동하여 완벽한 물리 법칙을 증명합니다.</p>
+    </header>
+
+    <div class="workspace">
+        <div class="canvas-viewport" id="viewportBoundary">
+            <div class="pole minus">(&minus;)</div>
+            <div class="terminal-overlay" id="dashboard"></div>
+            <canvas id="physicsCanvas"></canvas>
+            <div class="pole plus">(+)</div>
+        </div>
+
+        <div class="graph-container">
+            <div class="graph-title">
+                <span>실시간 에너지 손실 차트 (Energy Loss Timeline)</span>
+                <span id="liveLossPercent" style="color: #ff4d4d; font-family: monospace;">LOSS: 0.0%</span>
+            </div>
+            <canvas id="graphCanvas"></canvas>
+        </div>
+
+        <div class="control-panel">
+            <div class="control-group">
+                <div class="control-label">1. 도체 재질 <span>(임계 온도 T<sub>c</sub>)</span></div>
+                <div class="material-selector">
+                    <button class="material-btn active" onclick="setMaterial('copper', this)">구리 <span style="font-size:0.75rem; font-weight:normal;">(T<sub>c</sub>: -240°C)</span></button>
+                    <button class="material-btn" onclick="setMaterial('iron', this)">철 <span style="font-size:0.75rem; font-weight:normal;">(T<sub>c</sub>: -210°C)</span></button>
+                    <button class="material-btn" onclick="setMaterial('nichrome', this)">니크롬 <span style="font-size:0.75rem; font-weight:normal;">(초전도 불가)</span></button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="control-label">2. 도체 내부 온도 <span class="val" id="tempText" style="color:#ff9f43;">20 °C</span></div>
+                <input type="range" id="tempSlider" min="-273" max="300" step="1" value="20">
+            </div>
+
+            <div class="control-group">
+                <div class="control-label">3. 가해준 전압 <span class="val" id="voltText" style="color:#4ade80;">2.0 V</span></div>
+                <input type="range" id="voltSlider" min="0.5" max="10" step="0.5" value="2.0">
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('physicsCanvas');
+    const ctx = canvas.getContext('2d');
+    const graphCanvas = document.getElementById('graphCanvas');
+    const gCtx = graphCanvas.getContext('2d');
+
+    canvas.width = 900; canvas.height = 260;
+    graphCanvas.width = 880; graphCanvas.height = 70;
+
+    const tempSlider = document.getElementById('tempSlider');
+    const voltSlider = document.getElementById('voltSlider');
+    const tempText = document.getElementById('tempText');
+    const voltText = document.getElementById('voltText');
+    const dashboard = document.getElementById('dashboard');
+    const liveLossPercent = document.getElementById('liveLossPercent');
+    const viewportBoundary = document.getElementById('viewportBoundary');
+
+    let currentMaterial = 'copper';
+    let temperature = 20;
+    let voltage = 2.0;
+    let globalCollisionCount = 0;
+    let isSuperconducting = false;
+    let lossHistory = Array(150).fill(0);
+
+    const materialData = {
+        copper: { name: 'COPPER (구리)', baseRes: 1.5, tc: -240, radius: 13, rows: 3, cols: 8, color: '#e05a47' },
+        iron: { name: 'IRON (철)', baseRes: 3.5, tc: -210, radius: 17, rows: 4, cols: 9, color: '#bc6c25' },
+        nichrome: { name: 'NICHROME (니크롬)', baseRes: 6.5, tc: -999, radius: 21, rows: 4, cols: 10, color: '#a8a8a8' }
+    };
+
+    let atoms = [];
+
+    function buildStructure() {
+        atoms = [];
+        const config = materialData[currentMaterial];
+        const xSpacing = canvas.width / (config.cols + 1);
+        const ySpacing = canvas.height / (config.rows + 1);
+
+        for (let i = 0; i < config.cols; i++) {
+            for (let j = 0; j < config.rows; j++) {
+                const zigzag = (j % 2 === 0) ? 12 : -12;
+                atoms.push({
+                    baseX: xSpacing * (i + 1) + zigzag, baseY: ySpacing * (j + 1),
+                    x: xSpacing * (i + 1) + zigzag, y: ySpacing * (j + 1),
+                    radius: config.radius
+                });
+            }
+        }
+    }
+
+    class FreeElectron {
+        constructor() { this.init(true); }
+        init(randomizeX = false) {
+            this.x = randomizeX ? Math.random() * (canvas.width - 120) + 60 : 50;
+            this.y = 40 + Math.random() * (canvas.height - 80);
+            this.radius = 4;
+            this.color = '#38bdf8';
+            this.isColliding = false;
+            
+            // 전압을 올리면 전자의 속도(vx)만 빨라집니다. (온도 간섭 없음)
+            const speedMultiplier = isSuperconducting ? 2.5 : 1.0;
+            this.vx = (0.8 + voltage * 0.6) * speedMultiplier;
+            this.vy = isSuperconducting ? 0 : (Math.random() - 0.5) * 1.5;
+        }
+
+        update() {
+            const speedMultiplier = isSuperconducting ? 2.5 : 1.0;
+            const forwardForce = (0.6 + voltage * 0.5) * speedMultiplier;
+
+            if (!isSuperconducting) {
+                atoms.forEach(atom => {
+                    const dx = this.x - atom.x; const dy = this.y - atom.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance < atom.radius + this.radius) {
+                        if (!this.isColliding) {
+                            globalCollisionCount++;
+                            this.isColliding = true;
+                            this.color = '#ef4444';
+                            this.x -= this.vx;
+                            // 튕겨나가는 각도는 철저히 현재 사용자가 설정한 온도(+273)와 가속도에만 동기화
+                            this.vy = (dy / distance) * (2 + ((temperature + 273) * 0.005) + (voltage * 0.3));
+                            this.vx *= -0.3;
+                        }
+                    }
+                });
+
+                if (this.isColliding) {
+                    let stillInside = false;
+                    atoms.forEach(atom => {
+                        if (Math.sqrt((this.x - atom.x)**2 + (this.y - atom.y)**2) < atom.radius + this.radius + 2) stillInside = true;
+                    });
+                    if (!stillInside) { this.isColliding = false; this.color = '#38bdf8'; }
+                }
+            } else {
+                this.isColliding = false;
+                this.color = '#00f2fe';
+                this.vy = 0;
+            }
+
+            if (this.vx < forwardForce) this.vx += 0.2;
+            this.x += this.vx; this.y += this.vy;
+
+            if (this.y - this.radius < 10 || this.y + this.radius > canvas.height - 10) this.vy *= -1;
+            if (this.x > canvas.width - 50) this.init(false);
+        }
+        draw() {
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fillStyle = this.color;
+            if(isSuperconducting) { ctx.shadowBlur = 8; ctx.shadowColor = '#00f2fe'; }
+            ctx.fill(); ctx.shadowBlur = 0;
+        }
+    }
+
+    const electronCloud = Array.from({ length: 28 }, () => new FreeElectron());
+
+    window.setMaterial = function(materialName, element) {
+        currentMaterial = materialName;
+        document.querySelectorAll('.material-btn').forEach(btn => btn.classList.remove('active'));
+        element.classList.add('active');
+        checkSuperconductivity();
+        buildStructure();
+    };
+
+    function checkSuperconductivity() {
+        const mat = materialData[currentMaterial];
+        isSuperconducting = (temperature <= mat.tc);
+    }
+
+    tempSlider.addEventListener('input', (e) => {
+        temperature = parseInt(e.target.value);
+        tempText.innerText = `${temperature} °C`;
+        checkSuperconductivity();
+    });
+
+    voltSlider.addEventListener('input', (e) => {
+        voltage = parseFloat(e.target.value);
+        voltText.innerText = `${voltage.toFixed(1)} V`;
+    });
+
+    function calculateLoss() {
+        if (isSuperconducting) return 0;
+        const mat = materialData[currentMaterial];
+        
+        // 철저하게 사용자가 조작 중인 독립된 온도값(temperature)만 수식에 대입
+        const absoluteTemp = temperature + 273; 
+        const tempCoefficient = 0.12 + (absoluteTemp * 0.004);
+        const totalResistance = mat.baseRes * tempCoefficient;
+        
+        let lossPower = (voltage * voltage) * totalResistance * 0.4;
+        let maxPossibleLoss = (10 * 10) * (6.5 * (0.12 + 573 * 0.004)) * 0.4;
+        let lossPercentage = (lossPower / maxPossibleLoss) * 100;
+        
+        if (voltage < 1) lossPercentage *= voltage;
+        return Math.max(0.5, Math.min(lossPercentage, 100));
+    }
+
+    function drawGraph() {
+        gCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+        gCtx.strokeStyle = 'rgba(255, 107, 107, 0.15)'; gCtx.lineWidth = 1;
+        for(let h = 15; h < graphCanvas.height; h += 20) {
+            gCtx.beginPath(); gCtx.moveTo(0, h); gCtx.lineTo(graphCanvas.width, h); gCtx.stroke();
+        }
+        gCtx.beginPath(); gCtx.lineWidth = 2;
+        gCtx.strokeStyle = isSuperconducting ? '#00f2fe' : '#ff4d4d';
+        let step = graphCanvas.width / (lossHistory.length - 1);
+        for(let i = 0; i < lossHistory.length; i++) {
+            let y = graphCanvas.height - (lossHistory[i] / 100) * (graphCanvas.height - 10) - 5;
+            if(i === 0) gCtx.moveTo(0, y); else gCtx.lineTo(i * step, y);
+        }
+        gCtx.stroke();
+    }
+
+    buildStructure();
+
+    function renderLoop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const currentConfig = materialData[currentMaterial];
+        const currentLoss = calculateLoss();
+        lossHistory.push(currentLoss); lossHistory.shift();
+        
+        liveLossPercent.innerText = `LOSS: ${currentLoss.toFixed(1)}%`;
+        
+        if (isSuperconducting) {
+            viewportBoundary.style.borderColor = '#00f2fe';
+            viewportBoundary.style.boxShadow = 'inset 0 0 30px rgba(0, 242, 254, 0.2)';
+            liveLossPercent.style.color = '#00f2fe';
+        } else {
+            viewportBoundary.style.borderColor = `rgba(239, 68, 68, ${currentLoss / 100})`;
+            viewportBoundary.style.boxShadow = 'inset 0 0 30px rgba(0,0,0,0.9)';
+            liveLossPercent.style.color = '#ff4d4d';
+        }
+
+        const tcText = currentConfig.tc === -999 ? '불가능' : `${currentConfig.tc}°C`;
+        const stateString = isSuperconducting ? '<span style="color:#00f2fe; font-weight:bold;">SUPERCONDUCTING (초전도)</span>' : 'NORMAL (일반 도체)';
+        dashboard.innerHTML = `
+            MATERIAL : ${currentConfig.name} (T<sub>c</sub>: ${tcText})<br>
+            STATE    : ${stateString}<br>
+            VOLTAGE  : ${voltage.toFixed(1)} V | TEMP : ${temperature} °C<br>
+            COLLISION COUNTER : ${String(globalCollisionCount).padStart(4, '0')}<br>
+            <span style="color:${isSuperconducting ? '#00f2fe':'#ff6b6b'}; font-weight:bold;">ENERGY LOSS PAYLOAD : ${currentLoss.toFixed(1)} %</span>
+        `;
+
+        atoms.forEach(atom => {
+            // 원자의 진동 폭(vibrationAmp)은 오직 사용자가 만지는 '온도 슬라이더'에 의해서만 결정됩니다! (전압에 영향 받지 않음)
+            const absoluteTemp = temperature + 273;
+            const vibrationAmp = isSuperconducting ? 0 : absoluteTemp * 0.04;
+            atom.x = atom.baseX + (Math.random() - 0.5) * vibrationAmp;
+            atom.y = atom.baseY + (Math.random() - 0.5) * vibrationAmp;
+
+            ctx.beginPath(); ctx.arc(atom.x, atom.y, atom.radius, 0, Math.PI * 2);
+            if (isSuperconducting) {
+                ctx.fillStyle = '#1e3a8a'; ctx.strokeStyle = '#00f2fe'; ctx.lineWidth = 1.5; ctx.stroke();
+            } else {
+                ctx.fillStyle = currentConfig.color;
+                ctx.shadowBlur = Math.max(0, absoluteTemp * 0.03); ctx.shadowColor = currentConfig.color;
+                ctx.fill(); ctx.shadowBlur = 0;
+            }
+        });
+
+        electronCloud.forEach(electron => { electron.update(); electron.draw(); });
+        drawGraph();
+        requestAnimationFrame(renderLoop);
+    }
+    renderLoop();
+</script>
+
+</body>
+</html>
